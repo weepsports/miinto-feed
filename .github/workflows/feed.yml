@@ -1,0 +1,36 @@
+name: Miinto feed
+
+on:
+  schedule:
+    # Miinto pobiera feed o XX:00-10 i XX:30-40 - budujemy tuż przed każdym oknem
+    - cron: "20,50 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: miinto-feed
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow==11.0.0
+      - name: Zbuduj feed
+        env:
+          BASE_FEED_URL: ${{ secrets.BASE_FEED_URL }}
+        run: python3 miinto_feed.py --src "$BASE_FEED_URL" --out docs/miinto.tsv --cache image_cache.json
+      - name: Opublikuj
+        run: |
+          git config user.name "miinto-feed-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/miinto.tsv image_cache.json image_cache.json.src_hash bez_packshotu.csv
+          git diff --cached --quiet || git commit -m "Aktualizacja feedu Miinto"
+          git push
